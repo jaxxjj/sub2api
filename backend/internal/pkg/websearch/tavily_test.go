@@ -3,6 +3,7 @@ package websearch
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -13,13 +14,9 @@ func TestTavilyProvider_Name(t *testing.T) {
 }
 
 func TestTavilyProvider_Search_RequestConstruction(t *testing.T) {
-	// Verify tavilyRequest struct fields map correctly
-	req := tavilyRequest{
-		APIKey:      "test-key",
-		Query:       "golang",
-		MaxResults:  3,
-		SearchDepth: tavilySearchDepthBasic,
-	}
+	req := newTavilyRequest("test-key", SearchRequest{
+		Query: "golang", MaxResults: 3, Domains: []string{"go.dev"}, RecencyDays: 30,
+	}, time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC))
 	data, err := json.Marshal(req)
 	require.NoError(t, err)
 
@@ -29,6 +26,9 @@ func TestTavilyProvider_Search_RequestConstruction(t *testing.T) {
 	require.Equal(t, "golang", parsed["query"])
 	require.Equal(t, float64(3), parsed["max_results"])
 	require.Equal(t, "basic", parsed["search_depth"])
+	require.Equal(t, []any{"go.dev"}, parsed["include_domains"])
+	require.Equal(t, "2026-07-04", parsed["start_date"])
+	require.Equal(t, "2026-08-03", parsed["end_date"])
 }
 
 func TestTavilyProvider_Search_ResponseParsing(t *testing.T) {

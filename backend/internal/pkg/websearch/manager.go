@@ -88,8 +88,8 @@ func NewManager(configs []ProviderConfig, redisClient *redis.Client) *Manager {
 // reserves quota, executes the search, and rolls back quota on failure.
 // If the search fails due to a proxy error, the proxy is marked unavailable for 5 minutes.
 func (m *Manager) SearchWithBestProvider(ctx context.Context, req SearchRequest) (*SearchResponse, string, error) {
-	if strings.TrimSpace(req.Query) == "" {
-		return nil, "", fmt.Errorf("websearch: empty search query")
+	if err := ValidateSearchRequest(req); err != nil {
+		return nil, "", err
 	}
 
 	candidates := m.filterAvailableProviders(ctx, req.ProxyURL)

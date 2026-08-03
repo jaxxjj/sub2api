@@ -38,6 +38,9 @@ const (
 // webSearchManagerPtr stores *websearch.Manager atomically for concurrent safety.
 var webSearchManagerPtr atomic.Pointer[websearch.Manager]
 
+// ErrWebSearchUnavailable indicates that standalone search has no configured provider.
+var ErrWebSearchUnavailable = errors.New("web search is unavailable")
+
 // SetWebSearchManager wires the websearch.Manager into the gateway (goroutine-safe).
 func SetWebSearchManager(m *websearch.Manager) {
 	webSearchManagerPtr.Store(m)
@@ -186,11 +189,7 @@ func (s *GatewayService) handleWebSearchEmulation(
 
 func doWebSearch(ctx context.Context, account *Account, query string) (*websearch.SearchResponse, string, error) {
 	proxyURL := resolveAccountProxyURL(account)
-	mgr := getWebSearchManager()
-	if mgr == nil {
-		return nil, "", fmt.Errorf("web search emulation: manager not initialized")
-	}
-	resp, providerName, err := mgr.SearchWithBestProvider(ctx, websearch.SearchRequest{
+	resp, providerName, err := executeWebSearch(ctx, websearch.SearchRequest{
 		Query: query, MaxResults: webSearchDefaultMaxResults, ProxyURL: proxyURL,
 	})
 	if err != nil {
@@ -198,6 +197,19 @@ func doWebSearch(ctx context.Context, account *Account, query string) (*websearc
 		return nil, "", fmt.Errorf("web search emulation: %w", err)
 	}
 	return resp, providerName, nil
+}
+
+// SearchWeb executes a provider-neutral search for the standalone HTTP endpoint.
+func (s *GatewayService) SearchWeb(ctx context.Context, req websearch.SearchRequest) (*websearch.SearchResponse, string, error) {
+	return executeWebSearch(ctx, req)
+}
+
+func executeWebSearch(ctx context.Context, req websearch.SearchRequest) (*websearch.SearchResponse, string, error) {
+	mgr := getWebSearchManager()
+	if mgr == nil {
+		return nil, "", ErrWebSearchUnavailable
+	}
+	return mgr.SearchWithBestProvider(ctx, req)
 }
 
 func resolveAccountProxyURL(account *Account) string {

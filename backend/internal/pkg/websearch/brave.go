@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"time"
 )
 
 const (
@@ -47,8 +49,11 @@ func (b *BraveProvider) Search(ctx context.Context, req SearchRequest) (*SearchR
 
 	u := *braveSearchURL // copy the pre-parsed URL
 	q := u.Query()
-	q.Set("q", req.Query)
+	q.Set("q", braveQuery(req.Query, req.Domains))
 	q.Set("count", strconv.Itoa(count))
+	if freshness := braveFreshness(req.RecencyDays, time.Now().UTC()); freshness != "" {
+		q.Set("freshness", freshness)
+	}
 	u.RawQuery = q.Encode()
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -89,6 +94,37 @@ func (b *BraveProvider) Search(ctx context.Context, req SearchRequest) (*SearchR
 	}
 
 	return &SearchResponse{Results: results, Query: req.Query}, nil
+}
+
+func braveQuery(query string, domains []string) string {
+	if len(domains) == 0 {
+		return query
+	}
+	sites := make([]string, 0, len(domains))
+	for _, domain := range domains {
+		sites = append(sites, "site:"+domain)
+	}
+	if len(sites) == 1 {
+		return query + " " + sites[0]
+	}
+	return query + " (" + strings.Join(sites, " OR ") + ")"
+}
+
+func braveFreshness(days int, now time.Time) string {
+	switch days {
+	case 0:
+		return ""
+	case 1:
+		return "pd"
+	case 7:
+		return "pw"
+	case 31:
+		return "pm"
+	case 365:
+		return "py"
+	default:
+		return now.AddDate(0, 0, -days).Format(time.DateOnly) + "to" + now.Format(time.DateOnly)
+	}
 }
 
 // braveResponse is the minimal structure of the Brave Search API response.

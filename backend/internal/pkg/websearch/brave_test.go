@@ -19,8 +19,9 @@ func TestBraveProvider_Search_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "test-key", r.Header.Get("X-Subscription-Token"))
 		require.Equal(t, "application/json", r.Header.Get("Accept"))
-		require.Equal(t, "golang", r.URL.Query().Get("q"))
+		require.Equal(t, "golang (site:go.dev OR site:pkg.go.dev)", r.URL.Query().Get("q"))
 		require.Equal(t, "3", r.URL.Query().Get("count"))
+		require.Equal(t, "pw", r.URL.Query().Get("freshness"))
 
 		resp := braveResponse{}
 		resp.Web.Results = []braveResult{
@@ -40,7 +41,9 @@ func TestBraveProvider_Search_Success(t *testing.T) {
 	*braveSearchURL = *u.URL
 	defer func() { *braveSearchURL = origURL }()
 
-	resp, err := p.Search(context.Background(), SearchRequest{Query: "golang", MaxResults: 3})
+	resp, err := p.Search(context.Background(), SearchRequest{
+		Query: "golang", MaxResults: 3, Domains: []string{"go.dev", "pkg.go.dev"}, RecencyDays: 7,
+	})
 	require.NoError(t, err)
 	require.Len(t, resp.Results, 3)
 	require.Equal(t, "https://go.dev", resp.Results[0].URL)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 const (
@@ -38,12 +39,8 @@ func (t *TavilyProvider) Search(ctx context.Context, req SearchRequest) (*Search
 		maxResults = defaultMaxResults
 	}
 
-	payload := tavilyRequest{
-		APIKey:      t.apiKey,
-		Query:       req.Query,
-		MaxResults:  maxResults,
-		SearchDepth: tavilySearchDepthBasic,
-	}
+	req.MaxResults = maxResults
+	payload := newTavilyRequest(t.apiKey, req, time.Now().UTC())
 
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -89,10 +86,25 @@ func (t *TavilyProvider) Search(ctx context.Context, req SearchRequest) (*Search
 }
 
 type tavilyRequest struct {
-	APIKey      string `json:"api_key"`
-	Query       string `json:"query"`
-	MaxResults  int    `json:"max_results"`
-	SearchDepth string `json:"search_depth"`
+	APIKey         string   `json:"api_key"`
+	Query          string   `json:"query"`
+	MaxResults     int      `json:"max_results"`
+	SearchDepth    string   `json:"search_depth"`
+	IncludeDomains []string `json:"include_domains,omitempty"`
+	StartDate      string   `json:"start_date,omitempty"`
+	EndDate        string   `json:"end_date,omitempty"`
+}
+
+func newTavilyRequest(apiKey string, req SearchRequest, now time.Time) tavilyRequest {
+	payload := tavilyRequest{
+		APIKey: apiKey, Query: req.Query, MaxResults: req.MaxResults, SearchDepth: tavilySearchDepthBasic,
+		IncludeDomains: req.Domains,
+	}
+	if req.RecencyDays > 0 {
+		payload.StartDate = now.AddDate(0, 0, -req.RecencyDays).Format(time.DateOnly)
+		payload.EndDate = now.Format(time.DateOnly)
+	}
+	return payload
 }
 
 type tavilyResponse struct {
